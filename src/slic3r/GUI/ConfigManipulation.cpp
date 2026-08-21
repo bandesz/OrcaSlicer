@@ -679,6 +679,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool has_solid_infill = has_top_shell || has_bottom_shell;
     toggle_field("top_surface_pattern", has_top_shell);
     toggle_field("bottom_surface_pattern", has_bottom_shell);
+    toggle_field("bridge_bottom_surface_pattern", have_infill || has_solid_infill);
     toggle_field("top_surface_density", has_top_shell);
     toggle_field("bottom_surface_density", has_bottom_shell);
 

@@ -7,6 +7,7 @@
 #include "libslic3r/Fill/Fill.hpp"
 #include "libslic3r/Flow.hpp"
 #include "libslic3r/Geometry.hpp"
+#include "libslic3r/Layer.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SVG.hpp"
 #include "libslic3r/libslic3r.h"
@@ -475,4 +476,101 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
 #endif
 
     return uncovered.empty(); // solid surface is fully filled
+}
+
+// Rectilinear chains parallel lines into few paths; concentric emits one path per offset loop.
+static size_t infill_path_count(const Print &print, ExtrusionRole role, size_t min_layer_id = 0)
+{
+    size_t paths = 0;
+    for (const Layer *layer : print.objects().front()->layers()) {
+        if (layer->id() < min_layer_id)
+            continue;
+        for (const LayerRegion *region : layer->regions()) {
+            const ExtrusionEntityCollection flattened = region->fills.flatten();
+            for (const ExtrusionEntity *entity : flattened.entities) {
+                auto account = [&](const ExtrusionPath &path) {
+                    if (path.role() == role)
+                        ++paths;
+                };
+                if (auto *path = dynamic_cast<const ExtrusionPath *>(entity))
+                    account(*path);
+                else if (auto *multi = dynamic_cast<const ExtrusionMultiPath *>(entity))
+                    for (const ExtrusionPath &p : multi->paths)
+                        account(p);
+                else if (auto *loop = dynamic_cast<const ExtrusionLoop *>(entity))
+                    for (const ExtrusionPath &p : loop->paths)
+                        account(p);
+            }
+        }
+    }
+    return paths;
+}
+
+TEST_CASE("Bridge bottom surface pattern changes the underside infill of a bridge", "[Fill]")
+{
+    auto path_count_for = [](const char *pattern) {
+        Print print;
+        Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::bridge}, print,
+                                            {{"bridge_bottom_surface_pattern", pattern},
+                                             {"top_surface_pattern", "rectilinear"},
+                                             {"enable_support", 0},
+                                             {"layer_height", 0.2},
+                                             {"sparse_infill_density", "20%"}});
+        REQUIRE_FALSE(print.objects().empty());
+        return infill_path_count(print, erBridgeInfill);
+    };
+
+    const size_t rectilinear = path_count_for("rectilinear");
+    const size_t concentric  = path_count_for("concentric");
+    REQUIRE(rectilinear > 0);
+    // Rectilinear chains parallel lines into few paths. Concentric emits one path
+    // per offset loop, so it must produce more paths if the setting switched the
+    // bridge underside pattern.
+    REQUIRE(concentric > rectilinear);
+}
+
+TEST_CASE("Bridge bottom surface pattern changes the underside of a supported overhang", "[Fill]")
+{
+    auto path_count_for = [](const char *pattern) {
+        Print print;
+        // Top Z distance 0 types the overhang as stBottom (erBottomSurface), not a bridge.
+        Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::bridge}, print,
+                                            {{"bridge_bottom_surface_pattern", pattern},
+                                             {"top_surface_pattern", "rectilinear"},
+                                             {"bottom_surface_pattern", "rectilinear"},
+                                             {"enable_support", 1},
+                                             {"support_type", "normal(auto)"},
+                                             {"support_interface_top_layers", 3},
+                                             {"support_top_z_distance", 0},
+                                             {"bridge_no_support", 0},
+                                             {"layer_height", 0.2},
+                                             {"sparse_infill_density", "20%"}});
+        REQUIRE_FALSE(print.objects().empty());
+        return infill_path_count(print, erBottomSurface, 1);
+    };
+
+    const size_t rectilinear = path_count_for("rectilinear");
+    const size_t concentric  = path_count_for("concentric");
+    REQUIRE(rectilinear > 0);
+    REQUIRE(concentric > rectilinear);
+}
+
+TEST_CASE("Bridge bottom surface pattern does not change internal bridge infill", "[Fill]")
+{
+    auto path_count_for = [](const char *pattern) {
+        Print print;
+        Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::cube_20x20x20}, print,
+                                            {{"bridge_bottom_surface_pattern", pattern},
+                                             {"top_surface_pattern", "rectilinear"},
+                                             {"internal_solid_infill_pattern", "rectilinear"},
+                                             {"enable_support", 0},
+                                             {"layer_height", 0.2},
+                                             {"sparse_infill_density", "20%"}});
+        REQUIRE_FALSE(print.objects().empty());
+        return infill_path_count(print, erInternalBridgeInfill);
+    };
+
+    const size_t rectilinear = path_count_for("rectilinear");
+    REQUIRE(rectilinear > 0);
+    REQUIRE(path_count_for("concentric") == rectilinear);
 }

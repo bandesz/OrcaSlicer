@@ -97,6 +97,37 @@ enum InfillPattern : int {
     ipCount,
 };
 
+// Pattern choices for bridge_bottom_surface_pattern. Default is setting behaviour, not a fill algorithm.
+// Order matches top/bottom surface pattern dropdowns, with Default first.
+enum class BridgeBottomSurfacePattern {
+    Default,
+    Monotonic,
+    MonotonicLine,
+    Rectilinear,
+    AlignedRectilinear,
+    Concentric,
+    HilbertCurve,
+    ArchimedeanChords,
+    OctagramSpiral,
+};
+
+inline InfillPattern infill_pattern_for_bridge_bottom(BridgeBottomSurfacePattern pattern, InfillPattern top_surface_pattern)
+{
+    switch (pattern) {
+    case BridgeBottomSurfacePattern::Default:
+        return (top_surface_pattern == ipMonotonic || top_surface_pattern == ipMonotonicLine) ? ipMonotonic : ipRectilinear;
+    case BridgeBottomSurfacePattern::Monotonic:          return ipMonotonic;
+    case BridgeBottomSurfacePattern::MonotonicLine:      return ipMonotonicLine;
+    case BridgeBottomSurfacePattern::Rectilinear:        return ipRectilinear;
+    case BridgeBottomSurfacePattern::AlignedRectilinear: return ipAlignedRectilinear;
+    case BridgeBottomSurfacePattern::Concentric:         return ipConcentric;
+    case BridgeBottomSurfacePattern::HilbertCurve:       return ipHilbertCurve;
+    case BridgeBottomSurfacePattern::ArchimedeanChords:  return ipArchimedeanChords;
+    case BridgeBottomSurfacePattern::OctagramSpiral:     return ipOctagramSpiral;
+    }
+    return ipRectilinear;
+}
+
 enum class IroningType {
     NoIroning,
     TopSurfaces,
@@ -526,6 +557,7 @@ CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(FuzzySkinMode)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(WipeTowerType)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(NoiseType)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(InfillPattern)
+CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(BridgeBottomSurfacePattern)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(IroningType)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SlicingMode)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SupportMaterialPattern)
@@ -1091,6 +1123,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPercent,               bottom_surface_density))
     ((ConfigOptionEnum<InfillPattern>,  top_surface_pattern))
     ((ConfigOptionEnum<InfillPattern>,  bottom_surface_pattern))
+    ((ConfigOptionEnum<BridgeBottomSurfacePattern>, bridge_bottom_surface_pattern))
     ((ConfigOptionEnum<InfillPattern>, internal_solid_infill_pattern))
     ((ConfigOptionFloatOrPercent,       outer_wall_line_width))
     ((ConfigOptionFloat,                outer_wall_speed))

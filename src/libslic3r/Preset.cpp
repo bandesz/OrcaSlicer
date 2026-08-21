@@ -1045,6 +1045,7 @@ static std::vector<std::string> s_Preset_print_options{
     "lightning_straightening_angle",
     "top_surface_pattern",
     "bottom_surface_pattern",
+    "bridge_bottom_surface_pattern",
     "infill_direction",
     "solid_infill_direction",
     "counterbore_hole_bridging",
